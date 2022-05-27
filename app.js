@@ -39,6 +39,9 @@ mongoose.connect(
 		}
 	}
 );
+// initialize the mongoose-auto-increment package
+var autoIncrement = require('mongoose-auto-increment');
+autoIncrement.initialize(mongoose.connection);
 
 var app = express();
 
@@ -46,7 +49,8 @@ var app = express();
  * Importing the routes for different end-points
  * < progress >
  */
-let progress = require('./routes/blog');
+let blog = require('./routes/blog');
+let authorization = require('./routes/authorization');
 
 // for parsing application/json
 app.use(bodyParser.json());
@@ -66,8 +70,8 @@ app.options('*', cors());
 
 /**
  * Specifying the routes for the different functionality
- * default route: /ohodr/api/
  */
-app.use('/lyearn/api/v1/progress', progress);
+app.use('/lyearn/api/v1/blog', blog);
+app.use('/lyearn/api/v1/authorization', authorization);
 
 module.exports = app;

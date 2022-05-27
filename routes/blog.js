@@ -6,5 +6,6 @@ const authenticateToken = require('../middlewares/authenticateUser.js');
 router.post('/track-content-progress', authenticateToken, blog.trackContentProgress);
 router.post('/log-time', authenticateToken, blog.logTime);
 router.get('/get-time-spent/:blogId', authenticateToken, blog.timeSpent);
+router.post('/create-blog', authenticateToken, blog.createBlog);
 
 module.exports = router;
