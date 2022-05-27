@@ -53,7 +53,7 @@ userSchema.methods.generateJWT = function () {
         id: this._id,
     };
 
-    return jwt.sign(payload, process.env.ADMIN_ACCESS_KEY, {
+    return jwt.sign(payload, process.env.JWT_SECRET_KEY, {
         expiresIn: parseInt(expirationDate.getTime() / 1000, 10),
     });
 };

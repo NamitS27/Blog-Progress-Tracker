@@ -7,23 +7,19 @@ function authenticateToken(req, res, next) {
 	const token = authHeader && authHeader.split(" ")[1];
 	let isSuccess, message, status;
 	if (!token) {
-		isSuccess = false;
 		message = "Token is missing!";
 		status = 401;
 		return res.status(status).json({
-			isSuccess: isSuccess,
 			message: message,
 			status: status,
 		});
 	}
-	jwt.verify(token, process.env.ADMIN_ACCESS_KEY, (err, user) => {
+	jwt.verify(token, process.env.JWT_SECRET_KEY, (err, user) => {
 		// verify the token
 		if (err) {
-			isSuccess = false;
 			message = "Cannot verify the token or the token has expired!";
 			status = 403;
 			return res.status(status).json({
-				isSuccess: isSuccess,
 				message: message,
 				status: status,
 			});
