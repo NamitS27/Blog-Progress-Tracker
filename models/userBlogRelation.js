@@ -30,7 +30,7 @@ let userBlogRelationSchema = mongoose.Schema(
 			default: 0,
 			max: 100,
 		},
-		progress: [
+		content: [
 			{
 				contentType: String,
 				progress: {

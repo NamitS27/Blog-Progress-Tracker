@@ -16,7 +16,7 @@ exports.createBlog = async (req, res) => {
 		});
 		return res.status(200).json({
 			status: 200,
-			blogId: blog.id,
+			blogId: parseInt(blog.id),
 			message: 'Blog created successfully',
 		});
 	} catch (err) {
@@ -202,3 +202,29 @@ exports.trackContentProgress = async (req, res) => {
 		});
 	}
 };
+
+exports.fetchBlogProgress = async (req, res) => {
+	try {
+		const { blogId } = req.params;
+		const { id: userId } = req.user;
+
+		let userBlogRelation = await userBlogRelation.findOne({ userId: userId, blogId: blogId });
+		if (!userBlogRelation) {
+			return res.status(204).json({
+				status: 204,
+				message: 'No user-blog relation found',
+			});
+		}
+		return res.status(200).json({
+			status: 200,
+			totalProgress: userBlogRelation.totalProgress,
+			progress: userBlogRelation.progress,
+		});
+	} catch (err) {
+		console.log(err);
+		return res.status(500).json({
+			status: 500,
+			message: 'Something went wrong!',
+		});
+	}
+}
