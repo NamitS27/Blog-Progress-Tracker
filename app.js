@@ -39,15 +39,11 @@ mongoose.connect(
 		}
 	}
 );
-// initialize the mongoose-auto-increment package
-var autoIncrement = require('mongoose-auto-increment');
-autoIncrement.initialize(mongoose.connection);
 
 var app = express();
 
 /**
  * Importing the routes for different end-points
- * < progress >
  */
 let blog = require('./routes/blog');
 let authorization = require('./routes/authorization');
