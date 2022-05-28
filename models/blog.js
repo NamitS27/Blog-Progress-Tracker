@@ -1,5 +1,4 @@
 var mongoose = require("mongoose");
-const autoIncrement = require("mongoose-auto-increment");
 
 let blogSchema = mongoose.Schema(
     {
@@ -8,11 +7,15 @@ let blogSchema = mongoose.Schema(
         },
         type: {
             type: String,
-        }
+        },
+        content: [
+            {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "Content"
+            }
+        ]
     },
     { timestamps: true, versionKey: false }
 );
-
-blogSchema.plugin(autoIncrement.plugin, "Blog");
 
 module.exports = mongoose.model("Blog", blogSchema);

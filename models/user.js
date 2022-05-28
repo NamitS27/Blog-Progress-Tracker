@@ -1,5 +1,4 @@
 var mongoose = require("mongoose");
-const autoIncrement = require("mongoose-auto-increment");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
@@ -20,8 +19,6 @@ let userSchema = mongoose.Schema(
     },
     { timestamps: true, versionKey: false }
 );
-
-userSchema.plugin(autoIncrement.plugin, "User");
 
 userSchema.pre("save", function (next) {
     const user = this;
@@ -50,7 +47,8 @@ userSchema.methods.generateJWT = function () {
     expirationDate.setDate(today.getDate() + 1);
 
     let payload = {
-        id: this._id,
+        // objectId to string
+        id: this._id.toString(),
     };
 
     return jwt.sign(payload, process.env.JWT_SECRET_KEY, {

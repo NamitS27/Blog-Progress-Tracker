@@ -1,50 +1,31 @@
 var mongoose = require('mongoose');
-const autoIncrement = require('mongoose-auto-increment');
 
 let userBlogRelationSchema = mongoose.Schema(
 	{
-		userId: {
-			type: Number,
+		user: {
+			type: mongoose.Schema.Types.ObjectId,
 			ref: 'User',
 			require: true,
 		},
-		blogId: {
-			type: Number,
+		blog: {
+			type: mongoose.Schema.Types.ObjectId,
 			ref: 'Blog',
 			require: true,
 		},
-		lastOpenTime: [
+		openTime: [
 			{
 				type: Date,
 				default: Date.now,
-			},
+			}
 		],
-		lastCloseTime: [
+		closeTime: [
 			{
 				type: Date,
 				default: Date.now,
-			},
-		],
-		totalProgess: {
-			type: Number,
-			default: 0,
-			max: 100,
-		},
-		content: [
-			{
-				contentType: String,
-				progress: {
-					type: Number,
-					default: 0,
-					max: 100,
-				},
-				attributes: JSON,
-			},
+			}
 		],
 	},
 	{ timestamps: true, versionKey: false }
 );
-
-userBlogRelationSchema.plugin(autoIncrement.plugin, 'UserBlogRelation');
 
 module.exports = mongoose.model('UserBlogRelation', userBlogRelationSchema);
