@@ -1,5 +1,8 @@
+const Content = require('../models/content');
 const Blog = require('../models/blog');
-const userBlogRelation = require('../models/userBlogRelation');
+const UserBlogRelation = require('../models/userBlogRelation');
+const UserContentRelation = require('../models/userContentRelation');
+const mongoose = require('mongoose');
 
 exports.createBlog = async (req, res) => {
 	const { title, type } = req.body;
@@ -10,13 +13,10 @@ exports.createBlog = async (req, res) => {
 			type: type,
 		});
 		blog = await blog.save();
-		await userBlogRelation.create({
-			userId: req.user.id,
+
+		return res.status(201).json({
+			status: 201,
 			blogId: blog.id,
-		});
-		return res.status(200).json({
-			status: 200,
-			blogId: parseInt(blog.id),
 			message: 'Blog created successfully',
 		});
 	} catch (err) {
@@ -25,7 +25,47 @@ exports.createBlog = async (req, res) => {
 			message: 'Internal server error',
 		});
 	}
-}
+};
+
+exports.updateBlog = async (req, res) => {
+	const { blogId, title, contentDetails } = req.body;
+	try {
+		let blog = await Blog.findById(blogId);
+		if (!blog) {
+			return res.status(404).json({
+				status: 404,
+				message: 'Blog not found',
+			});
+		}
+
+		blog.title = title;
+		contentDetails.forEach(async (eachContentDetails) => {
+			if (eachContentDetails.operation === 'create') {
+				let content = await Content.create({
+					type: eachContentDetails.type,
+					attributes: eachContentDetails.attributes,
+				});
+				blog.content.push(mongoose.Types.ObjectId(content.id));
+			} else if (eachContentDetails.operation === 'update') {
+				let content = await Content.findById(eachContentDetails.id);
+				content.attributes = eachContentDetails.attributes;
+				await content.save();
+			}
+		});
+		await blog.save();
+		// blog = await blog.save();
+
+		return res.status(200).json({
+			status: 200,
+			message: 'Blog updated successfully',
+		});
+	} catch (err) {
+		return res.status(500).json({
+			status: 500,
+			message: 'Internal server error',
+		});
+	}
+};
 
 exports.logTime = async (req, res) => {
 	const { blogId, isOpen } = req.body;
@@ -33,21 +73,15 @@ exports.logTime = async (req, res) => {
 	let message, status;
 
 	try {
-		let userBlogRelation = await userBlogRelation.findOne({ userId: userId, blogId: blogId });
-		if (!userBlogRelation) {
-			userBlogRelation = new userBlogRelation({
-				userId: userId,
-				blogId: blogId,
-			});
-		}
-
-		// assuming that each time when the blog is opened / closed, the API will be called!
-		if (isOpen) {
-			userBlogRelation.openTime.add(Date.now());
-		} else {
-			userBlogRelation.closeTime.add(Date.now());
-		}
-		userBlogRelation = await userBlogRelation.save();
+		await UserBlogRelation.findOneAndUpdate(
+			{ user: userId, blog: blogId },
+			{
+				$push: {
+					[isOpen ? 'openTime' : 'closeTime']: Date.now(),
+				},
+			},
+			{ upsert: true }
+		);
 
 		message = 'Time updated successfully';
 		status = 200;
@@ -56,7 +90,6 @@ exports.logTime = async (req, res) => {
 			status: status,
 		});
 	} catch (err) {
-		console.log(err);
 		message = 'Time update unsuccesfull due to some error!';
 		status = 500;
 		return res.status(status).json({
@@ -70,15 +103,16 @@ exports.timeSpent = async (req, res) => {
 	try {
 		const { blogId } = req.params;
 		const { id: userId } = req.user;
-		const userBlogRelations = await userBlogRelation.findOne({ userId: userId, blogId: blogId });
+		const userBlogRelation = await UserBlogRelation.findOne({ user: userId, blog: blogId });
 		let timeSpent = 0;
-		if (userBlogRelations) {
-			const lastOpenTime = userBlogRelations.lastOpenTime;
-			const lastCloseTime = userBlogRelations.lastCloseTime;
+		if (userBlogRelation) {
+			const openTime = userBlogRelation.openTime;
+			const closeTime = userBlogRelation.closeTime;
 
-			for (let i = 0; i < lastOpenTime.length; i++) {
-				if (lastCloseTime[i] && lastOpenTime[i] && lastCloseTime[i] > lastOpenTime[i]) {
-					timeSpent += lastCloseTime[i] - lastOpenTime[i];
+			for (let i = 0; i < openTime.length; i++) {
+				if (closeTime[i] && openTime[i] && closeTime[i] > openTime[i]) {
+					// time spent for each blog in seconds
+					timeSpent += (closeTime[i] - openTime[i]) / 1000;
 				}
 			}
 			return res.status(200).json({
@@ -91,7 +125,6 @@ exports.timeSpent = async (req, res) => {
 			message: 'No time spent for this blog',
 		});
 	} catch (err) {
-		console.log(err);
 		return res.status(500).json({
 			status: 500,
 			message: 'Time spent unsuccesfull due to some error!',
@@ -101,101 +134,69 @@ exports.timeSpent = async (req, res) => {
 
 exports.trackContentProgress = async (req, res) => {
 	try {
-		const { blogId, contentDetails } = req.body;
+		const { contentDetails } = req.body;
 		const { id: userId } = req.user;
 
-		let userBlogRelation = await userBlogRelation.findOne({ userId: userId, blogId: blogId });
-		if (!userBlogRelation) {
-			return res.status(204).json({
-				status: 204,
-				message: 'No user-blog relation found',
-			});
-		}
-		contentDetails.forEach((content) => {
-			let contentType = content.contentType;
-			switch (contentType) {
-				case 'video':
-					// find in array of json objects
-					let video = userBlogRelation.progress.find((video) => video.id === content.id);
-					if (!video) {
-						video = {
-							id: content.id,
-							contentType: contentType,
-							attributes: content.attributes
-						};
-						userBlogRelation.progress.push(video);
+		contentDetails.forEach(async (eachContentDetails) => {
+			let conditionData = {
+				user: userId,
+				content: eachContentDetails.id,
+			}
+			let userContentRelation = await UserContentRelation.findOneAndUpdate(
+				conditionData,
+				{
+					$set: {
+						userAttributes: eachContentDetails.userAttributes
 					}
-					// calculate percentage based on totla duration and current time
-					video.progress = max(
-						video.progress,
-						(content.attributes.currentTime / content.attributes.duration) * 100
+				},
+				{ upsert: true, new: true }
+			).populate('content');
+
+			let content = userContentRelation.content;
+
+			switch (content.type) {
+				case 'video':
+					userContentRelation.progress = Math.max(
+						userContentRelation.progress,
+						(eachContentDetails.userAttributes.currentTime / content.attributes.duration) * 100
 					);
 					break;
 
 				case 'pdf':
-					let pdf = userBlogRelation.progress.find((pdf) => pdf.id === content.id);
-					if (!pdf) {
-						pdf = {
-							id: content.id,
-							contentType: contentType,
-							attributes: content.attributes
-						};
-						userBlogRelation.progress.push(pdf);
-					}
-					pdf.progress = max(
-						pdf.progress,
-						(content.attributes.currentPage / content.attributes.totalPages) * 100
+					userContentRelation.progress = Math.max(
+						userContentRelation.progress,
+						(eachContentDetails.userAttributes.pagesRead / content.attributes.totalPages) * 100
 					);
+					break;
 
 				case 'image':
-					let image = userBlogRelation.progress.find((image) => image.id === content.id);
-					if (!image) {
-						image = {
-							id: content.id,
-							contentType: contentType,
-							attributes: content.attributes
-						};
-						userBlogRelation.progress.push(image);
-					}
-					image.progress = max(image.progress, content.attributes.isOpened * 100);
+					userContentRelation.progress = Math.max(
+						userContentRelation.progress,
+						eachContentDetails.userAttributes.isOpened * 100
+					);
+					break;
 
 				case 'checklist':
-					let checklist = userBlogRelation.progress.find((checklist) => checklist.id === content.id);
-					if (!checklist) {
-						checklist = {
-							id: content.id,
-							contentType: contentType,
-							attributes: content.attributes
-						};
-						userBlogRelation.progress.push(checklist);
-					}
-					checklist.progress = max(
-						checklist.progress,
-						(content.attributes.checkedItems / content.attributes.totalItems.length()) * 100
+					userContentRelation.progress = Math.max(
+						userContentRelation.progress,
+						(eachContentDetails.userAttributes.checkedItems / content.attributes.totalItems.length()) * 100
 					);
+					break;
 
 				default:
 					return res.status(500).json({
 						status: 500,
 						message: 'Please specify content type',
 					});
-					break;
 			}
+			await userContentRelation.save();
 		});
-		// update the overall progress
-		let total_content = userBlogRelation.progress.length;
-		let total_progress = 0;
-		userBlogRelation.progress.forEach((content) => {
-			total_progress += content.progress;
-		});
-		userBlogRelation.progress = max(total_progress / total_content, userBlogRelation.progress);
-		await userBlogRelation.save();
+
 		return res.status(200).json({
 			status: 200,
 			message: 'Progress updated successfully',
 		});
 	} catch (err) {
-		console.log(err);
 		return res.status(500).json({
 			status: 500,
 			message: 'Something went wrong!',
@@ -208,23 +209,32 @@ exports.fetchBlogProgress = async (req, res) => {
 		const { blogId } = req.params;
 		const { id: userId } = req.user;
 
-		let userBlogRelation = await userBlogRelation.findOne({ userId: userId, blogId: blogId });
-		if (!userBlogRelation) {
+		let blog = await Blog.findById(blogId);
+		if (!blog) {
 			return res.status(204).json({
 				status: 204,
-				message: 'No user-blog relation found',
+				message: 'Specified blog not found',
 			});
 		}
+		let totalContent = blog.content.length;
+		let totalProgress = 0;
+
+		let contentProgress = await UserContentRelation.find({
+			user: userId,
+			content: { $in: blog.content },
+		}).populate('content');
+		contentProgress.forEach((content) => {
+			totalProgress += content.progress;
+		});
+		totalProgress = totalProgress / totalContent;
 		return res.status(200).json({
 			status: 200,
-			totalProgress: userBlogRelation.totalProgress,
-			progress: userBlogRelation.progress,
+			totalProgress: totalProgress,
 		});
 	} catch (err) {
-		console.log(err);
 		return res.status(500).json({
 			status: 500,
 			message: 'Something went wrong!',
 		});
 	}
-}
+};

@@ -5,7 +5,7 @@ function authenticateToken(req, res, next) {
 	// spliting the Authorization header into two parts as it contains Bearer + Token
 	const authHeader = req.headers["authorization"];
 	const token = authHeader && authHeader.split(" ")[1];
-	let isSuccess, message, status;
+	let message, status;
 	if (!token) {
 		message = "Token is missing!";
 		status = 401;
