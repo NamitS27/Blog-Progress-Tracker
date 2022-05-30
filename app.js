@@ -28,8 +28,6 @@ mongoose.connect(
 	{
 		useNewUrlParser: true,
 		useUnifiedTopology: true,
-		useFindAndModify: false,
-		useCreateIndex: true,
 	},
 	(err) => {
 		if (err) {
