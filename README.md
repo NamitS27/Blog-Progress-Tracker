@@ -51,11 +51,8 @@ Based on the email id and the password provided, the user is logged in.
 
 - `create-blog`
 
-Creates a blog based on details like title and the type of the blog.
+Creates a blog based on details like title, type and the content of the blog.
 
-- `update-blog`
-
-Updates the blog title as well as adds / updates the content present inside the blog.
 
 - `log-time`
 
@@ -73,6 +70,14 @@ Track the progress of a specific content inside the blog based on the attributes
 
 Computes the progress of the blog based on the progress of the individual content.
 
+> The performance of certain APIs are improved by using the caching mechanism and database indexing.
+
+### Assumptions
+- All the attributes of the different contents can be modified at any time.
+- Whenever user opens and closes the blog, the `log-time` API will always be called.
+- The `track-content-progress` API will be called every 1 minute and also when the user closes the blog page.
+- Whilst the content is added to the blog, weights will be assigned to the different contents i.e. video, image, pdf, checklist, etc will have a weightage (_ranging from 1 to 5 and can be changed as per the requirements_) based on the content through which the overall progress of the blog will vary accordingly.
+- The creation of the blog will be done by some admin user and the creation of the blog will be done after adding all the contents till then it will be saved as a draft.
 
 ## Installation and Running
 
