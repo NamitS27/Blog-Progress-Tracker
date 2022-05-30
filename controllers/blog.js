@@ -2,16 +2,32 @@ const Content = require('../models/content');
 const Blog = require('../models/blog');
 const UserBlogRelation = require('../models/userBlogRelation');
 const UserContentRelation = require('../models/userContentRelation');
-const mongoose = require('mongoose');
+const { cacheSimulator, addToCache, getCache } = require('../utils/cacheSimulator');
+const { default: mongoose } = require('mongoose');
 
 exports.createBlog = async (req, res) => {
-	const { title, type } = req.body;
+	const { title, type, contentDetails } = req.body;
 
 	try {
 		let blog = new Blog({
 			title: title,
 			type: type,
 		});
+		/**
+		 * Based on the content details provided, content is created
+		 * and added to the blog along with the weightage/importance factor.
+		 */
+		for(let i = 0; i < contentDetails.length; i++) {
+			let eachContentDetails = contentDetails[i];
+			let content = await Content.create({
+				type: eachContentDetails.type,
+				attributes: eachContentDetails.attributes
+			});
+			blog.content.push({
+				id: content.id,
+				importanceFactor: eachContentDetails.importanceFactor,
+			});
+		}
 		blog = await blog.save();
 
 		return res.status(201).json({
@@ -20,46 +36,7 @@ exports.createBlog = async (req, res) => {
 			message: 'Blog created successfully',
 		});
 	} catch (err) {
-		return res.status(500).json({
-			status: 500,
-			message: 'Internal server error',
-		});
-	}
-};
-
-exports.updateBlog = async (req, res) => {
-	const { blogId, title, contentDetails } = req.body;
-	try {
-		let blog = await Blog.findById(blogId);
-		if (!blog) {
-			return res.status(404).json({
-				status: 404,
-				message: 'Blog not found',
-			});
-		}
-
-		blog.title = title;
-		contentDetails.forEach(async (eachContentDetails) => {
-			if (eachContentDetails.operation === 'create') {
-				let content = await Content.create({
-					type: eachContentDetails.type,
-					attributes: eachContentDetails.attributes,
-				});
-				blog.content.push(mongoose.Types.ObjectId(content.id));
-			} else if (eachContentDetails.operation === 'update') {
-				let content = await Content.findById(eachContentDetails.id);
-				content.attributes = eachContentDetails.attributes;
-				await content.save();
-			}
-		});
-		await blog.save();
-		// blog = await blog.save();
-
-		return res.status(200).json({
-			status: 200,
-			message: 'Blog updated successfully',
-		});
-	} catch (err) {
+		console.error(err);
 		return res.status(500).json({
 			status: 500,
 			message: 'Internal server error',
@@ -73,6 +50,11 @@ exports.logTime = async (req, res) => {
 	let message, status;
 
 	try {
+		/**
+		 * Based on the value of isOpen, the user is either opening or closing the blog.
+		 * If the user is opening the blog, the openTime is updated.
+		 * If the user is closing the blog, the closeTime is updated.
+		 */
 		await UserBlogRelation.findOneAndUpdate(
 			{ user: userId, blog: blogId },
 			{
@@ -90,6 +72,7 @@ exports.logTime = async (req, res) => {
 			status: status,
 		});
 	} catch (err) {
+		console.error(err);
 		message = 'Time update unsuccesfull due to some error!';
 		status = 500;
 		return res.status(status).json({
@@ -103,18 +86,18 @@ exports.timeSpent = async (req, res) => {
 	try {
 		const { blogId } = req.params;
 		const { id: userId } = req.user;
+
 		const userBlogRelation = await UserBlogRelation.findOne({ user: userId, blog: blogId });
-		let timeSpent = 0;
 		if (userBlogRelation) {
 			const openTime = userBlogRelation.openTime;
 			const closeTime = userBlogRelation.closeTime;
 
-			for (let i = 0; i < openTime.length; i++) {
-				if (closeTime[i] && openTime[i] && closeTime[i] > openTime[i]) {
-					// time spent for each blog in seconds
-					timeSpent += (closeTime[i] - openTime[i]) / 1000;
-				}
-			}
+			/**
+			 * Calculating the time spent on the blog by the user using all the time logs.
+			 * If the user has not closed the blog, the time spent is the time since the user opened the blog.
+			 */
+			let timeSpent = openTime.reduce((acc, curr, idx) =>  acc + (closeTime[idx] - curr), 0);
+
 			return res.status(200).json({
 				timeSpent: timeSpent,
 				status: 200,
@@ -125,6 +108,7 @@ exports.timeSpent = async (req, res) => {
 			message: 'No time spent for this blog',
 		});
 	} catch (err) {
+		console.error(err);
 		return res.status(500).json({
 			status: 500,
 			message: 'Time spent unsuccesfull due to some error!',
@@ -138,12 +122,15 @@ exports.trackContentProgress = async (req, res) => {
 		const { id: userId } = req.user;
 
 		contentDetails.forEach(async (eachContentDetails) => {
-			let conditionData = {
-				user: userId,
-				content: eachContentDetails.id,
-			}
+			/**
+			 * Indexing on userId and contentId to find the userContentRelation will
+			 * increase the performance of the query.
+			 */
 			let userContentRelation = await UserContentRelation.findOneAndUpdate(
-				conditionData,
+				{
+					user: userId,
+					content: eachContentDetails.id,
+				},
 				{
 					$set: {
 						userAttributes: eachContentDetails.userAttributes
@@ -154,6 +141,10 @@ exports.trackContentProgress = async (req, res) => {
 
 			let content = userContentRelation.content;
 
+			/**
+			 * tracking the progress of the each content of the blog based on the attributes of the content
+			 * and the actions performed by the user.
+			 */
 			switch (content.type) {
 				case 'video':
 					userContentRelation.progress = Math.max(
@@ -179,7 +170,7 @@ exports.trackContentProgress = async (req, res) => {
 				case 'checklist':
 					userContentRelation.progress = Math.max(
 						userContentRelation.progress,
-						(eachContentDetails.userAttributes.checkedItems / content.attributes.totalItems.length()) * 100
+						(eachContentDetails.userAttributes.checkedItems.length() / content.attributes.items.length()) * 100
 					);
 					break;
 
@@ -197,6 +188,7 @@ exports.trackContentProgress = async (req, res) => {
 			message: 'Progress updated successfully',
 		});
 	} catch (err) {
+		console.error(err);
 		return res.status(500).json({
 			status: 500,
 			message: 'Something went wrong!',
@@ -209,6 +201,17 @@ exports.fetchBlogProgress = async (req, res) => {
 		const { blogId } = req.params;
 		const { id: userId } = req.user;
 
+		let totalProgress = getCache(`blogProgress-${blogId}`);
+		if (totalProgress) {
+			return res.status(200).json({
+				status: 200,
+				totalProgress: totalProgress,
+				isCached: true,
+			});
+		}
+		totalProgress = 0;
+		let totalImportance = 0;
+
 		let blog = await Blog.findById(blogId);
 		if (!blog) {
 			return res.status(204).json({
@@ -216,22 +219,29 @@ exports.fetchBlogProgress = async (req, res) => {
 				message: 'Specified blog not found',
 			});
 		}
-		let totalContent = blog.content.length;
-		let totalProgress = 0;
 
-		let contentProgress = await UserContentRelation.find({
-			user: userId,
-			content: { $in: blog.content },
-		}).populate('content');
-		contentProgress.forEach((content) => {
-			totalProgress += content.progress;
-		});
-		totalProgress = totalProgress / totalContent;
+		/**
+		 * Calculating the progress of the blog based on the progress of each content
+		 * through the method of weighted average.
+		 */
+		for(let i = 0; i < blog.content.length; i++) {
+			let content = blog.content[i];
+			let userContentRelation = await UserContentRelation.findOne({
+				user: userId,
+				content: mongoose.Types.ObjectId(content.id),
+			});
+			totalProgress += (userContentRelation.progress * content.importanceFactor);
+			totalImportance += content.importanceFactor;
+		}
+		totalProgress = totalProgress / totalImportance;
+
+		addToCache(`blogProgress-${blogId}`, totalProgress);
 		return res.status(200).json({
 			status: 200,
 			totalProgress: totalProgress,
 		});
 	} catch (err) {
+		console.error(err);
 		return res.status(500).json({
 			status: 500,
 			message: 'Something went wrong!',

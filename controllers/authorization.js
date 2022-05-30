@@ -25,11 +25,11 @@ exports.signUp = async (req, res) => {
         message = "User registeration unsuccesfull due to some error!";
         status = 500;
         console.error(err);
+        // To check if the same email is already registered
         if (err.name === "MongoError" && err.code === 11000) {
             message = `${req.body.email} is already in use!`;
             status = 403;
         }
-
 
         return res.status(status).json({
             message: message,
@@ -65,7 +65,6 @@ exports.login = async (req, res) => {
         }
 
         let token = user.generateJWT();
-
         user = user.sanitize();
 
         data = {
@@ -80,7 +79,7 @@ exports.login = async (req, res) => {
             status: status,
         });
     } catch (err) {
-        console.log(err);
+        console.error(err);
         message = "User login unsuccesfull due to some error!";
         status = 500;
         return res.status(status).json({
