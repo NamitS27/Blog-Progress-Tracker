@@ -10,8 +10,16 @@ let blogSchema = mongoose.Schema(
         },
         content: [
             {
-                type: mongoose.Schema.Types.ObjectId,
-                ref: "Content"
+                id: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: "Content"
+                },
+                // The importance factor is the weightage given to the content based on the information of the content
+                importanceFactor: {
+                    type: Number,
+                    default: 1,
+                    max: 5,
+                },
             }
         ]
     },

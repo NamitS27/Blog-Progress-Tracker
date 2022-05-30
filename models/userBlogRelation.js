@@ -2,16 +2,17 @@ var mongoose = require('mongoose');
 
 let userBlogRelationSchema = mongoose.Schema(
 	{
-		user: {
+		user: { // FK to user
 			type: mongoose.Schema.Types.ObjectId,
 			ref: 'User',
 			require: true,
 		},
-		blog: {
+		blog: { // FK to blog
 			type: mongoose.Schema.Types.ObjectId,
 			ref: 'Blog',
 			require: true,
 		},
+		// openTime and closeTime stores the open and close time of the blog evertime the user opens / closes the blog
 		openTime: [
 			{
 				type: Date,

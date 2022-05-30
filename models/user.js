@@ -47,7 +47,6 @@ userSchema.methods.generateJWT = function () {
     expirationDate.setDate(today.getDate() + 1);
 
     let payload = {
-        // objectId to string
         id: this._id.toString(),
     };
 
