@@ -233,7 +233,7 @@ exports.fetchBlogProgress = async (req, res) => {
 			totalProgress += (userContentRelation.progress * content.importanceFactor);
 			totalImportance += content.importanceFactor;
 		}
-		totalProgress = totalProgress / totalImportance;
+		totalProgress = Math.round(totalProgress / totalImportance);
 
 		addToCache(`blogProgress-${blogId}`, totalProgress);
 		return res.status(200).json({

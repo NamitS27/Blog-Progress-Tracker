@@ -45,7 +45,7 @@ exports.login = async (req, res) => {
     let message, status, data;
 
     try {
-        let user = await adminUser.findOne({ email: email });
+        let user = await User.findOne({ email: email });
         if (!user) {
             message = `The email address ${email} is not associated with any account. Double-check your email address and try again`;
             status = 401;
